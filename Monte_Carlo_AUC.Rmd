@@ -1,0 +1,139 @@
+### Code to approximate the AUC of the longitudinal compliance probabilities by Monte Carlo integration.
+### Sample size set to n = 10000 with K = 5 time points.
+### Code takes 9 minutes to run.
+### Parameters defaulted to the simulation scenario where $\alpha_1=-1.8$.
+
+```{r}
+## Packages for multivariate normal distribution, compliance patterns, AUC, and matrix operators
+library(gtools)
+library(mvtnorm)
+library(pROC)
+library(matrixStats)
+
+## Set sample size (n), time points (t), and true parameter values
+n = 10000; t = 5
+alpha0_t = 4.42; alpha1_t = -1.8; tau_t = 0.7; sigma_t = 0.3
+beta0_t = 0; gamma_t = 1
+
+## Variables required for calculating compliance patterns
+ps = permutations(2,t,v=0:1,repeats.allowed=TRUE)
+psk1 = permutations(2,t-1,v=0:1,repeats.allowed=TRUE)
+cam = ps[rep(1:2^t,n),]
+camk1 = psk1[rep(1:2^(t-1),n),]
+lu_mat = cbind(apply(ps,2,function(x){ifelse(x==1,-Inf,0)}),
+	apply(ps,2,function(x){ifelse(x==1,0,Inf)}))
+lu_matk1 = cbind(apply(psk1,2,function(x){ifelse(x==1,-Inf,0)}),
+	apply(psk1,2,function(x){ifelse(x==1,0,Inf)}))
+
+## Helper function for calculating multivariate normal CDF for each row of a matrix for probit model
+pfun = function(vec,beta0,s_mat,time){
+	set.seed(1)
+	return(pmvnorm(vec[1:time],vec[(time+1):(2*time)],
+	-beta0,sigma=s_mat)[1])
+}
+
+## Compliance log likelihood assuming a probit link
+pnlog_lik = function(x,w){
+	return(-sum(w*log(apply(lu_mat,1,pfun,beta0=x[1],
+	s_mat=matrix(c(1+exp(x[2]),rep(c(rep(exp(x[2]),t),1+exp(x[2])),t-1)),
+	nrow=t),time=t))))
+}
+
+## Biomarker log likelihood assuming an identity link with no censoring
+bnlog_lik = function(x,bset,w){
+	return(-sum(w*dmvnorm(bset-x[1]-x[2]*cam, 
+	sigma=matrix(c(exp(x[3])+exp(x[4]),rep(c(rep(exp(x[3]),t),exp(x[3])+exp(x[4])),t-1)),
+	nrow=t),TRUE)))
+}
+
+## Functions for calculating the prediction probability of compliance at a future time point
+omf = function(subm,a0,a1,ta,sa){
+	return(Vectorize(function(bk){
+	m_f = subm[,t]*dmvnorm(cbind(subm[,1:(t-1)],bk)-a0-a1*ps,
+			sigma=matrix(c(ta+sa,rep(c(rep(ta,t),ta+sa),t-1)),nrow=t))
+	ball = sum(m_f)
+	ltp = sum((m_f/ball)[seq(2,2^t,2)])
+	ltp[is.nan(ltp)] = 0
+	return(ltp*(ball/subm[1,t+1]))
+}))
+}
+
+int = function(x){integrate(x,-Inf,Inf)[1]$value}
+
+## Data generation
+set.seed(1)
+rs = rnorm(n,0,sqrt(gamma_t))
+rs2 = rnorm(n,0,sqrt(tau_t))
+		
+b_mat = matrix(NA, n, t)
+c_mat = matrix(NA, n, t)
+for(j in 1:t){
+	c_mat[,j] = rbinom(n,1,pnorm(beta0_t+rs))
+	b_mat[,j] = rnorm(n,alpha0_t+alpha1_t*c_mat[,j]+rs2,sqrt(sigma_t))
+}
+
+## Replicate biomarker matrix 2^t times for each compliance pattern. Repeat 2^(t-1) times for prediction.
+bam = b_mat[rep(1:nrow(b_mat),rep(2^t,n)),]
+b_matk1 = b_mat[,1:(t-1)]
+bamk1 = b_matk1[rep(1:nrow(b_matk1),rep(2^(t-1),n)),]
+
+## Use parameter estimates to calculate mixture density
+probsn = apply(lu_mat,1,pfun,beta0=beta0_t,
+	s_mat=matrix(c(1+gamma_t,rep(c(rep(gamma_t,t),1+gamma_t),t-1)),
+	nrow=t),time=t)
+
+fsn = dmvnorm(bam-alpha0_t-alpha1_t*cam, 
+	sigma = matrix(c(tau_t+sigma_t,rep(c(rep(tau_t,t),tau_t+sigma_t),t-1)),
+	nrow=t))
+
+## Weights of mixture density
+m_c = matrix(probsn*fsn,nrow=2^t)
+wvec_c = as.vector(t(t(m_c)/colSums(m_c)))
+
+## Calculate mixture density of t-1 time points for prediction
+probsnk1 = apply(lu_matk1,1,pfun,beta0=beta0_t,
+		s_mat=matrix(c(1+gamma_t,rep(c(rep(gamma_t,t-1),1+gamma_t),t-2)),
+		nrow=t-1),time=t-1)
+
+fsnk1 = dmvnorm(bamk1-alpha0_t-alpha1_t*camk1,
+		sigma=matrix(c(tau_t+sigma_t,rep(c(rep(tau_t,t-1),tau_t+sigma_t),t-2)),
+		nrow=t-1))
+
+## Calculate the prediction probability
+sup_m = lapply(split(cbind(bam[,1:(t-1)],probsn,
+	rep(colSums(matrix(probsnk1*fsnk1,nrow=2^(t-1))),each=2^t)),
+	rep(1:n,each=2^t)),matrix,ncol=t+1)
+
+fns = lapply(sup_m,omf,a0=alpha0_t,a1=alpha1_t,ta=tau_t,sa=sigma_t)
+
+q = Sys.time()
+preds = sapply(fns,int)
+print(Sys.time()-q)
+
+pmat = matrix(NA, nrow = n, ncol = t)
+for(j in 1:t){
+	tkp = pnorm(beta0_t)
+	tkpd = pnorm(beta0_t,lower.tail=FALSE)
+	tkdc = dnorm(b_mat[,j]-alpha0_t-alpha1_t,sd=sqrt(tau_t+sigma_t))
+	tkdnc = dnorm(b_mat[,j]-alpha0_t,sd=sqrt(tau_t+sigma_t))
+	pmat[,j] = tkp*tkdc/(tkp*tkdc+tkpd*tkdnc)	
+}
+
+
+## AUC for probability of compliance at the final time point given full biomarker history
+ptall = colSums(matrix(wvec_c[seq(2,2^t*n,2)],nrow=2^(t-1)))
+auc(c_mat[,t],ptall)
+
+## AUC for probability of compliance at the final time point given biomarker at final time point (Boatman et al.'s method)
+pnorm(-alpha1_t/(sqrt(tau_t+sigma_t)*sqrt(2)))
+
+## AUC for probability of compliance at all time points given full biomarker history
+pall = wvec_c[seq(2^t,2^t*n,2^t)]
+auc(rowProds(c_mat),pall)
+
+## AUC for probability of compliance at all time points assuming observations across time points are independent (The product of Boatman et al.'s method t times)
+auc(rowProds(c_mat),rowProds(pmat))
+
+## AUC for prediction probability of compliance at the final time point given biomarker history up to but not including the final time point
+auc(c_mat[,t],preds)
+```

@@ -1,0 +1,181 @@
+### Code to estimate parameters for simulated data with left-censoring.
+### Sample size set to n = 1000 with K = 3 time points.
+### Code takes 18 minutes to run.
+### Parameters defaulted to the simulation scenario where $\alpha_1=-1.8$.
+
+```{r, cache = TRUE}
+## Packages for multivariate normal distribution and compliance patterns
+library(mvtnorm)
+library(gtools)
+
+## Set sample size (n), time points (t), limit of quantification (loq), and true parameter values
+n = 1000; time = 3; loq = 2
+alpha0_t = 4.42; alpha1_t = -1.8; tau_t = 0.7; sigma_t = 0.3
+beta0_t = 0; gamma_t = 1
+
+## Variables required for calculating compliance patterns
+psm = permutations(2,time,v=0:1,repeats.allowed=TRUE)
+lu_mat = cbind(apply(psm,2,function(x){ifelse(x==1,-Inf,0)}),
+	apply(psm,2,function(x){ifelse(x==1,0,Inf)}))
+
+## Helper functions for left-censored data
+f = function(x,minimum=loq){return(which(x==minimum))}
+f2 = function(x){return(length(f(x)))}
+
+## Helper function for calculating multivariate normal CDF for each row of a matrix for probit model
+pfun = function(vec,beta0,s_mat,time){
+	set.seed(1)
+	return(pmvnorm(vec[1:time],vec[(time+1):(2*time)],
+	-beta0,sigma=s_mat)[1])
+}
+
+## Helper function for calculating multivariate normal CDF for each row of a matrix for left-censored biomarker
+pfun2 = function(vec,s_mat,time){
+	set.seed(1)
+	return(pmvnorm(vec[1:time],vec[(time+1):(2*time)],
+	vec[(2*time+1):(3*time)],sigma=s_mat)[1])
+}
+
+## Helper function for calculating multivariate normal PDF for biomarker
+bfun = function(vec,s_mat){
+	return(dmvnorm(vec,sigma=s_mat))
+}
+
+## Compliance log likelihood assuming a probit link
+pnlog_lik = function(x,w){
+	return(-sum(w*log(apply(lu_mat,1,pfun,beta0=x[1],
+	s_mat=matrix(c(1+exp(x[2]),rep(c(rep(exp(x[2]),time),1+exp(x[2])),time-1)),
+	nrow=time),time=time))))
+}
+
+## Biomarker log likelihood assuming an identity link with left-censoring
+bno = function(x,bset,lg=TRUE,ft=log,tot=sum,neg=-1,wv=1,time,kset){
+	a0 = x[1]; a1 = x[2]; tau = exp(x[3]); sig = exp(x[4])
+	sm = matrix(c(tau+sig,rep(c(rep(tau,time),tau+sig),time-1)),nrow=time)
+
+	subao = bset[which(rowSums(inds_mat)==time),]
+	cam = psm[rep(1:nrow(psm),nrow(subao)/2^time),]
+	lik = dmvnorm(subao-a0-a1*cam,sigma=sm,log=lg)
+
+	for(k in kset){
+		subm = bset[which(rowSums(inds_mat)==time-k),]
+
+		bs = cbind(subm[,(k+1):time])
+		nc = nrow(subm)
+		psk = permutations(2,time-k,v=0:1,repeats.allowed=TRUE)
+		camk = cbind(psk[rep(1:nrow(psk),2^k*nrow(subm)/2^time),])
+		vals = bs-a0-a1*camk
+		tt = matrix(c(tau+sig,rep(c(rep(tau,time-k),tau+sig),time-k-1)),nrow=time-k)
+		fs = apply(vals,1,bfun,s_mat=rbind(tt))
+	
+		oo = matrix(c(tau+sig,rep(c(rep(tau,k),tau+sig),k-1)),nrow=k)
+		ot = matrix(tau,nrow=k,ncol=time-k)
+		tti = solve(tt)
+
+		dm = ot%*%tti[1:nrow(tti),1:ncol(tti)]%*%t(vals[1:nrow(vals),1:ncol(vals)])
+		sc = oo-ot%*%tti%*%t(ot)
+		psk2 = cbind(psm[,1:k])
+		camk2 = cbind(psk2[rep(1:nrow(psk2),nrow(subm)/2^time),])
+		mu = a0+a1*camk2+t(dm)
+		bounds = rep(c(-Inf,loq),each=k)
+		a_m = cbind(matrix(rep(bounds,nc),nrow=nc,byrow=TRUE),mu)
+		fc = apply(a_m,1,pfun2,s_mat=sc,time=k)
+		lik = c(lik,ft(fs*fc))
+	}
+
+	ai = rbind(rep(c(-Inf,loq),each=time))
+	a_a = cbind(ai[rep(1,2^time),],a0+a1*psm)
+	ps = apply(a_a,1,pfun2,s_mat=sm,time=time)
+	lik = c(lik,rep(ft(ps),nrow(bset[which(rowSums(inds_mat)==0),])/2^time))
+	return(neg*tot(wv*lik))
+}
+
+## Data generation
+set.seed(1)
+rs = rnorm(n,0,sqrt(gamma_t))
+rs2 = rnorm(n,0,sqrt(tau_t))		
+b_mat = matrix(NA, n, time)
+c_mat = matrix(NA, n, time)
+for(j in 1:time){
+	c_mat[,j] = rbinom(n,1,pnorm(beta0_t+rs))
+	b_mat[,j] = rnorm(n,alpha0_t+alpha1_t*c_mat[,j]+rs2,sqrt(sigma_t))
+}
+b_mat = ifelse(b_mat<loq,loq,b_mat)
+m = t(apply(b_mat,1,sort))		
+rs = apply(m,1,f2)
+pseudo = cbind(1:nrow(m),rs)
+b_mat2 = m[pseudo[order(pseudo[,2]),][,1],]
+
+## Replicate biomarker matrix 2^t times for each compliance pattern
+bam = b_mat2[rep(1:n,rep(2^time,n)),]
+
+## Flag left-censored biomarker data
+inds_mat = ifelse(bam<=loq,0,1)
+
+oe = c(alpha0_t,alpha1_t,tau_t,sigma_t,beta0_t,gamma_t)
+
+## Set starting values of EM algorithm at truth
+x = c(alpha0_t,alpha1_t,log(tau_t),log(sigma_t),beta0_t,log(gamma_t))
+
+rel_diff = 10; iter = 0; oinc = 1e6; s = -1
+res = rbind(c(oe,iter,s))
+
+q = Sys.time()
+
+## The EM algorithm
+while(rel_diff > 1e-05){
+	a0 = oe[1]; a1 = oe[2]; tau = oe[3]; sig = oe[4]
+	b0 = oe[5]; gam = oe[6]
+	
+	## E step
+	probs = apply(lu_mat,1,pfun,beta0=b0,
+		s_mat=matrix(c(1+gam,rep(c(rep(gam,time),1+gam),time-1)),
+		nrow=time),time=time)
+	fs = bno(c(a0,a1,log(tau),log(sig)),bam,lg=FALSE,ft=c,tot=c,neg=1,
+		time=time,kset=1:(time-1))
+	m = matrix(probs*fs,nrow=2^time)
+	wvec = as.vector(t(t(m)/colSums(m)))
+
+	## M step
+	init = c(a0,a1,log(tau),log(sig))
+	e1 = optim(par=init,fn=bno,bset=bam,wv=wvec,
+		time=time,kset=1:(time-1),method="BFGS")$par
+			
+	init2 = c(b0,log(gam))
+	e2 = optim(par=init2,fn=pnlog_lik,w=wvec,method="BFGS")$par
+
+	## Calculate relative difference in parameter estimates as a terminating condition
+	rel_diff = sum(abs((c(e1[1:2],exp(e1[3:4]),e2[1],exp(e2[2]))-oe)/oe))
+
+	iter = iter + 1
+	oe = c(e1[1:2],exp(e1[3:4]),e2[1],exp(e2[2]))
+	a0 = oe[1]; a1 = oe[2]; tau = oe[3]; sig = oe[4]
+	b0 = oe[5]; gam = oe[6]
+	
+	## Calculate negative incomplete log likelihood, should decrease with each EM step
+	probsn = apply(lu_mat,1,pfun,beta0=b0,
+		s_mat=matrix(c(1+gam,rep(c(rep(gam,time),1+gam),time-1)),
+		nrow=time),time=time)
+
+	fsn = bno(c(a0,a1,log(tau),log(sig)),bam,lg=FALSE,ft=c,tot=c,neg=1,
+		time=time,kset=1:(time-1))
+
+	ninc = -sum(log(colSums(matrix(probsn*fsn,nrow=2^time))))
+
+	## Sign of difference in incomplete negative log likelihoods between iterations, should be negative
+	s = sign(ninc-oinc)
+	oinc = ninc
+	res = rbind(res,c(oe,iter,s))
+}
+
+print(Sys.time()-q)
+
+res2 = cbind(res[,5:6],res[,1:4],res[,7:8])
+colnames(res2) = c("beta0","gamma_sq","alpha0","alpha1","tau_sq","sigma_sq","iter","decrease in incomplete negative log likelihood?")
+print(res2)
+
+## Comparison of parameter estimates to truth
+comp_mat = rbind(c(beta0_t,gamma_t,alpha0_t,alpha1_t,tau_t,sigma_t),c(res2[nrow(res2),1:2],res2[nrow(res2),3:6]))
+rownames(comp_mat) = c("Truth", "Estimate")
+print(comp_mat)
+```
