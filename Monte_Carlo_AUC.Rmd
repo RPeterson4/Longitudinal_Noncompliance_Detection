@@ -12,7 +12,7 @@ library(matrixStats)
 
 ## Set sample size (n), time points (t), and true parameter values
 n = 10000; t = 5
-alpha0_t = 4.42; alpha1_t = -1.8; tau_t = 0.7; sigma_t = 0.3
+alpha0_t = 4.0; alpha1_t = -1.8; tau_t = 0.7; sigma_t = 0.3
 beta0_t = 0; gamma_t = 1
 
 ## Variables required for calculating compliance patterns

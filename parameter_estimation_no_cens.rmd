@@ -1,6 +1,6 @@
 ### Code to estimate parameters for simulated data with no left-censoring.
 ### Sample size set to n = 10000 with K = 5 time points.
-### Code takes two minutes to run.
+### Code takes 2 minutes to run.
 ### Parameters defaulted to the simulation scenario where $\alpha_1=-1.8$.
 
 ```{r, cache = TRUE}
@@ -10,7 +10,7 @@ library(gtools)
 
 ## Set sample size (n), time points (t), and true parameter values
 n = 10000; t = 5;
-alpha0_t = 4.42; alpha1_t = -1.8; tau_t = 0.7; sigma_t = 0.3
+alpha0_t = 4.0; alpha1_t = -1.8; tau_t = 0.7; sigma_t = 0.3
 beta0_t = 0; gamma_t = 1
 
 ## Variables required for calculating compliance patterns

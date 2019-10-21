@@ -1,6 +1,6 @@
 ### Code to estimate parameters for simulated data with left-censoring.
 ### Sample size set to n = 1000 with K = 3 time points.
-### Code takes 18 minutes to run.
+### Code takes 17 minutes to run.
 ### Parameters defaulted to the simulation scenario where $\alpha_1=-1.8$.
 
 ```{r, cache = TRUE}
@@ -9,8 +9,8 @@ library(mvtnorm)
 library(gtools)
 
 ## Set sample size (n), time points (t), limit of quantification (loq), and true parameter values
-n = 1000; time = 3; loq = 2
-alpha0_t = 4.42; alpha1_t = -1.8; tau_t = 0.7; sigma_t = 0.3
+n = 1000; time = 3; loq = 1.5
+alpha0_t = 4.0; alpha1_t = -1.8; tau_t = 0.7; sigma_t = 0.3
 beta0_t = 0; gamma_t = 1
 
 ## Variables required for calculating compliance patterns
