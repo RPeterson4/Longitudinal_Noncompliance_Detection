@@ -187,4 +187,26 @@ while(rel_diff > 1e-05){
 
 Sys.time() - q
 print(nres)
+
+log_Lik_fn = function(oe){
+  a0 = oe[1]; a1 = oe[2]; tau = oe[3]^2; sig = oe[4]^2
+  b0 = oe[5]; gam = oe[6]^2
+  log_Lik = NULL
+  for(i in 1:time){
+  bam = cbind(bmats[[i]])
+  lu_mat = lu_mats[[i]]
+  probsn = apply(lu_mat,1,pfun,beta0=b0,
+  s_mat=matrix(c(1+gam,rep(c(rep(gam,i),1+gam),i-1)),
+  nrow=i),time=i)
+  fsn = bno(x=c(a0,a1,log(tau),log(sig)),bset=bam,lg=FALSE,ft=c,
+  time=i,kset=ks_mats[[i]],inds_mat=cbind(inds_mats[[i]]),
+  psm=cbind(psmats[[i]]))
+  log_Lik = c(log_Lik,colSums(matrix(probsn*fsn,nrow=2^i)))
+  }
+  log_Lik = c(log_Lik,dnorm(hotel_a-a0-a1,sd=sqrt(tau+sig)))
+  return(-sum(log(log_Lik)))
+}
+
+nlm_r = nlm(f=log_Lik_fn,p=c(-3.561979,-2.363655,sqrt(0.9670717),sqrt(0.5154328),-0.3592389,sqrt(8.437472)),hessian=TRUE)
+round(diag(solve(nlm_r$hessian)),3)
 ```
