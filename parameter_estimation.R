@@ -1,0 +1,94 @@
+# File of parameter estimation
+
+## Source the functions file
+source("C:/Users/rlpet/Documents/GitHub/Longitudinal_Noncompliance_Detection/functions.R")
+
+## Generate data as Compound Symmetry
+set.seed(292015)
+rs = rnorm(n,0,sqrt(gamma_t))
+rs2 = rnorm(n,0,sqrt(tau_t))		
+b_mat = matrix(NA, n, t)
+c_mat = matrix(NA, n, t)
+for(j in 1:t){
+	c_mat[,j] = rbinom(n,1,pnorm(beta0_t+rs))
+	b_mat[,j] = rnorm(n,alpha0_t+alpha1_t*c_mat[,j]+rs2,sqrt(sigma_t))
+}
+
+## To generate data as AR(1), uncomment this code
+## c_mat = ps[sample(1:2^t,n,replace=TRUE,prob=probs_AR1),]
+## b_mat = t(apply(c_mat,1,bgen))
+
+## Replicate the biomarker 2^t times for the 2^t compliance patterns
+bam = b_mat[rep(1:nrow(b_mat),rep(2^t,n)),]
+
+## Start parameter estimates at the truth
+oe = c(alpha0_t,alpha1_t,tau_t,sigma_t,beta0_t,gamma_t)
+
+## Define objects needed to run the EM algorithm
+rel_diff = 10; iter = 0; oinc = 1e6; s = -1
+
+## Track time elapsed to run EM algorithm
+q = Sys.time()
+
+## EM algorithm assuming Compound Symmetry covariance structures
+while(rel_diff > 1e-05){
+
+	## E-step: Calculate the marginal compliance probabilities
+	probs = apply(lu_matr,1,pfun,beta0=oe[5],
+		s_mat=matrix(c(1+oe[6],rep(c(rep(oe[6],t),1+oe[6]),t-1)),
+		nrow=t),time=t)[rsums]
+	
+	## E-step: Calculate the densities of the biomarker
+	fs = dmvnorm(bam-oe[1]-oe[2]*cam,z, 
+		matrix(c(oe[3]+oe[4],rep(c(rep(oe[3],t),oe[3]+oe[4]),t-1)),
+		nrow=t))
+
+	## E-step: Calculate the weights
+	m = matrix(probs*fs,nrow=2^t)
+	wvec = as.vector(t(t(m)/colSums(m)))
+
+	## M-step: Fit the compliance mixed effects model
+	init = c(oe[1],oe[2],log(oe[3]),log(oe[4]))
+	e1 = optim(par=init,fn=bnlog_lik,bset=bam,w=wvec,method="BFGS")$par
+			
+	## M-step: Fit the biomarker mixed effects model
+	init2 = c(oe[5],log(oe[6]))
+	e2 = optim(par=init2,fn=pnlog_lik,w=wvec,method="BFGS")$par	
+
+	## Calculate the relative difference convergence criterion
+	rel_diff = sum(abs((c(e1[1:2],exp(e1[3:4]),e2[1],exp(e2[2]))-oe)/oe))
+
+	## Update the number of iterations and parameter estimates
+	iter = iter + 1
+	oe = c(e1[1:2],exp(e1[3:4]),e2[1],exp(e2[2]))
+
+	## Calculate the negative incomplete log likelihood
+	## The negative log likelihood should decrease with each iteration
+	probsn = apply(lu_matr,1,pfun,beta0=oe[5],
+		s_mat=matrix(c(1+oe[6],rep(c(rep(oe[6],t),1+oe[6]),t-1)),
+		nrow=t),time=t)[rsums]
+	fsn = dmvnorm(bam-oe[1]-oe[2]*cam,z, 
+		matrix(c(oe[3]+oe[4],rep(c(rep(oe[3],t),oe[3]+oe[4]),t-1)),
+		nrow=t))
+	ninc = -sum(log(colSums(matrix(probsn*fsn,nrow=2^t))))
+	
+	## Compare the new and previous negative incomplete log likelihood
+	s = max(s,sign(ninc-oinc))
+
+	## Update the negative incomplete log likelihood
+	oinc = ninc
+
+}
+
+## Time elapsed
+Sys.time() - q
+
+## Check that negative incomplete log likelihood decreased with each iteration
+s
+
+## Compare parameter estimates with truth
+res = rbind(c(beta0_t,sqrt(gamma_t),alpha0_t,alpha1_t,sqrt(tau_t),sqrt(sigma_t)),
+	c(oe[5],sqrt(oe[6]),oe[1:2],sqrt(oe[3:4])))
+colnames(res) = c("beta0","gamma","alpha0","alpha1","tau","sigma")
+rownames(res) = c("truth","estimate")
+res
