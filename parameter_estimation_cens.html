@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
 
 <head>
 
 <meta charset="utf-8" />
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="pandoc" />
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
@@ -84,7 +83,6 @@ code {
 }
 img {
   max-width:100%;
-  height: auto;
 }
 .tabbed-pane {
   padding-top: 12px;
@@ -146,6 +144,7 @@ summary {
   border: none;
   display: inline-block;
   border-radius: 4px;
+  background-color: transparent;
 }
 
 .tabset-dropdown > .nav-tabs.nav-tabs-open > li {
@@ -181,399 +180,123 @@ summary {
 </div>
 
 
-<div id="code-to-estimate-parameters-for-simulated-data-with-left-censoring." class="section level3">
-<h3>Code to estimate parameters for simulated data with left-censoring.</h3>
+<div id="file-of-parameter-estimation-with-a-left-censored-biomarker" class="section level1">
+<h1>File of parameter estimation with a left-censored biomarker</h1>
 </div>
-<div id="sample-size-set-to-n-1000-with-k-3-time-points." class="section level3">
-<h3>Sample size set to n = 1000 with K = 3 time points.</h3>
+<div id="takes-10-minutes-to-run-one-simulation-for-n-1000-participants-and-k-3-time-points" class="section level1">
+<h1>Takes 10 minutes to run one simulation for n = 1000 participants and K = 3 time points</h1>
+<div id="set-the-number-of-participants-and-time-points-in-the-data-set" class="section level3">
+<h3>Set the number of participants and time points in the data set</h3>
+<pre class="r"><code>n = 1000; t = 3</code></pre>
 </div>
-<div id="code-takes-17-minutes-to-run." class="section level3">
-<h3>Code takes 17 minutes to run.</h3>
+<div id="source-the-functions-file" class="section level3">
+<h3>Source the functions file</h3>
+<pre class="r"><code>source(&quot;C:/Users/rlpet/Documents/GitHub/Longitudinal_Noncompliance_Detection/functions.R&quot;)</code></pre>
 </div>
-<div id="parameters-defaulted-to-the-simulation-scenario-where-alpha_1-1.8." class="section level3">
-<h3>Parameters defaulted to the simulation scenario where <span class="math inline">\(\alpha_1=-1.8\)</span>.</h3>
-<pre class="r"><code>## Packages for multivariate normal distribution and compliance patterns
-library(mvtnorm)
-library(gtools)
-
-## Set sample size (n), time points (t), limit of quantification (loq), and true parameter values
-n = 1000; time = 3; loq = 1.5
-alpha0_t = 4.0; alpha1_t = -1.8; tau_t = 0.7; sigma_t = 0.3
-beta0_t = 0; gamma_t = 1
-
-## Variables required for calculating compliance patterns
-psm = permutations(2,time,v=0:1,repeats.allowed=TRUE)
-lu_mat = cbind(apply(psm,2,function(x){ifelse(x==1,-Inf,0)}),
-    apply(psm,2,function(x){ifelse(x==1,0,Inf)}))
-
-## Helper functions for left-censored data
-f = function(x,minimum=loq){return(which(x==minimum))}
-f2 = function(x){return(length(f(x)))}
-
-## Helper function for calculating multivariate normal CDF for each row of a matrix for probit model
-pfun = function(vec,beta0,s_mat,time){
-    set.seed(1)
-    return(pmvnorm(vec[1:time],vec[(time+1):(2*time)],
-    -beta0,sigma=s_mat)[1])
-}
-
-## Helper function for calculating multivariate normal CDF for each row of a matrix for left-censored biomarker
-pfun2 = function(vec,s_mat,time){
-    set.seed(1)
-    return(pmvnorm(vec[1:time],vec[(time+1):(2*time)],
-    vec[(2*time+1):(3*time)],sigma=s_mat)[1])
-}
-
-## Helper function for calculating multivariate normal PDF for biomarker
-bfun = function(vec,s_mat){
-    return(dmvnorm(vec,sigma=s_mat))
-}
-
-## Compliance log likelihood assuming a probit link
-pnlog_lik = function(x,w){
-    return(-sum(w*log(apply(lu_mat,1,pfun,beta0=x[1],
-    s_mat=matrix(c(1+exp(x[2]),rep(c(rep(exp(x[2]),time),1+exp(x[2])),time-1)),
-    nrow=time),time=time))))
-}
-
-## Biomarker log likelihood assuming an identity link with left-censoring
-bno = function(x,bset,lg=TRUE,ft=log,tot=sum,neg=-1,wv=1,time,kset){
-    a0 = x[1]; a1 = x[2]; tau = exp(x[3]); sig = exp(x[4])
-    sm = matrix(c(tau+sig,rep(c(rep(tau,time),tau+sig),time-1)),nrow=time)
-
-    subao = bset[which(rowSums(inds_mat)==time),]
-    cam = psm[rep(1:nrow(psm),nrow(subao)/2^time),]
-    lik = dmvnorm(subao-a0-a1*cam,sigma=sm,log=lg)
-
-    for(k in kset){
-        subm = bset[which(rowSums(inds_mat)==time-k),]
-
-        bs = cbind(subm[,(k+1):time])
-        nc = nrow(subm)
-        psk = permutations(2,time-k,v=0:1,repeats.allowed=TRUE)
-        camk = cbind(psk[rep(1:nrow(psk),2^k*nrow(subm)/2^time),])
-        vals = bs-a0-a1*camk
-        tt = matrix(c(tau+sig,rep(c(rep(tau,time-k),tau+sig),time-k-1)),nrow=time-k)
-        fs = apply(vals,1,bfun,s_mat=rbind(tt))
-    
-        oo = matrix(c(tau+sig,rep(c(rep(tau,k),tau+sig),k-1)),nrow=k)
-        ot = matrix(tau,nrow=k,ncol=time-k)
-        tti = solve(tt)
-
-        dm = ot%*%tti[1:nrow(tti),1:ncol(tti)]%*%t(vals[1:nrow(vals),1:ncol(vals)])
-        sc = oo-ot%*%tti%*%t(ot)
-        psk2 = cbind(psm[,1:k])
-        camk2 = cbind(psk2[rep(1:nrow(psk2),nrow(subm)/2^time),])
-        mu = a0+a1*camk2+t(dm)
-        bounds = rep(c(-Inf,loq),each=k)
-        a_m = cbind(matrix(rep(bounds,nc),nrow=nc,byrow=TRUE),mu)
-        fc = apply(a_m,1,pfun2,s_mat=sc,time=k)
-        lik = c(lik,ft(fs*fc))
-    }
-
-    ai = rbind(rep(c(-Inf,loq),each=time))
-    a_a = cbind(ai[rep(1,2^time),],a0+a1*psm)
-    ps = apply(a_a,1,pfun2,s_mat=sm,time=time)
-    lik = c(lik,rep(ft(ps),nrow(bset[which(rowSums(inds_mat)==0),])/2^time))
-    return(neg*tot(wv*lik))
-}
-
-## Data generation
-set.seed(1)
+<div id="generate-data-as-compound-symmetry" class="section level3">
+<h3>Generate data as Compound Symmetry</h3>
+<pre class="r"><code>set.seed(1)
 rs = rnorm(n,0,sqrt(gamma_t))
 rs2 = rnorm(n,0,sqrt(tau_t))        
-b_mat = matrix(NA, n, time)
-c_mat = matrix(NA, n, time)
-for(j in 1:time){
+b_mat = matrix(NA, n, t)
+c_mat = matrix(NA, n, t)
+for(j in 1:t){
     c_mat[,j] = rbinom(n,1,pnorm(beta0_t+rs))
     b_mat[,j] = rnorm(n,alpha0_t+alpha1_t*c_mat[,j]+rs2,sqrt(sigma_t))
-}
-b_mat = ifelse(b_mat&lt;loq,loq,b_mat)
+}</code></pre>
+</div>
+<div id="to-generate-data-as-ar1-uncomment-this-code" class="section level3">
+<h3>To generate data as AR(1), uncomment this code</h3>
+<pre class="r"><code># c_mat = ps[sample(1:2^t,n,replace=TRUE,prob=probs_AR1),]
+# b_mat = t(apply(c_mat,1,bgen))</code></pre>
+</div>
+<div id="left-censor-biomarker-data-that-is-below-the-limit-of-quantification-loq" class="section level3">
+<h3>Left-censor biomarker data that is below the limit of quantification (LOQ)</h3>
+<pre class="r"><code>b_mat = ifelse(b_mat&lt;loq,loq,b_mat)
 m = t(apply(b_mat,1,sort))      
-rs = apply(m,1,f2)
-pseudo = cbind(1:nrow(m),rs)
-b_mat2 = m[pseudo[order(pseudo[,2]),][,1],]
-
-## Replicate biomarker matrix 2^t times for each compliance pattern
-bam = b_mat2[rep(1:n,rep(2^time,n)),]
-
-## Flag left-censored biomarker data
-inds_mat = ifelse(bam&lt;=loq,0,1)
-
-oe = c(alpha0_t,alpha1_t,tau_t,sigma_t,beta0_t,gamma_t)
-
-## Set starting values of EM algorithm at truth
-x = c(alpha0_t,alpha1_t,log(tau_t),log(sigma_t),beta0_t,log(gamma_t))
-
-rel_diff = 10; iter = 0; oinc = 1e6; s = -1
-res = rbind(c(oe,iter,s))
-
-q = Sys.time()
-
-## The EM algorithm
-while(rel_diff &gt; 1e-05){
+rows = apply(m,1,f2)
+pseudo = cbind(1:nrow(m),rows)
+b_mat2 = m[pseudo[order(pseudo[,2]),][,1],]</code></pre>
+</div>
+<div id="replicate-the-longitudinal-biomarker-2t-times-for-the-2t-compliance-patterns" class="section level3">
+<h3>Replicate the longitudinal biomarker 2^t times for the 2^t compliance patterns</h3>
+<pre class="r"><code>bam = b_mat2[rep(1:n,rep(2^t,n)),]
+inds_mat = ifelse(bam&lt;=loq,0,1)</code></pre>
+</div>
+<div id="set-starting-values-of-em-algorithm-at-truth" class="section level3">
+<h3>Set starting values of EM algorithm at truth</h3>
+<pre class="r"><code>oe = c(alpha0_t,alpha1_t,tau_t,sigma_t,beta0_t,gamma_t)
+rel_diff = 10; iter = 0; oinc = 1e6; s = -1</code></pre>
+</div>
+<div id="em-algorithm-assuming-compound-symmetry-covariance-structures" class="section level3">
+<h3>EM algorithm assuming Compound Symmetry covariance structures</h3>
+<pre class="r"><code>while(rel_diff &gt; 1e-05){
     a0 = oe[1]; a1 = oe[2]; tau = oe[3]; sig = oe[4]
     b0 = oe[5]; gam = oe[6]
     
-    ## E step
-    probs = apply(lu_mat,1,pfun,beta0=b0,
-        s_mat=matrix(c(1+gam,rep(c(rep(gam,time),1+gam),time-1)),
-        nrow=time),time=time)
-    fs = bno(c(a0,a1,log(tau),log(sig)),bam,lg=FALSE,ft=c,tot=c,neg=1,
-        time=time,kset=1:(time-1))
-    m = matrix(probs*fs,nrow=2^time)
-    wvec = as.vector(t(t(m)/colSums(m)))
+    # E-step: Calculate the marginal compliance probabilities
+    probs = apply(lu_matr,1,pfun,beta0=b0,
+        s_mat=matrix(c(1+gam,rep(c(rep(gam,t),1+gam),t-1)),
+        nrow=t),time=t)[rsums]
 
-    ## M step
+    # E-step: Calculate the densities of the biomarker with left-censoring
+    fs = bno(c(a0,a1,log(tau),log(sig)),bam,lg=FALSE,ft=c,tot=c,neg=1,
+        time=t,kset=1:(t-1))
+
+    # E-step: Calculate the weights
+    m = matrix(probs*fs,nrow=2^t)
+    wvec = as.vector(t(t(m)/colSums(m)))
+    
+    # M-step: Fit the biomarker mixed effects model
     init = c(a0,a1,log(tau),log(sig))
     e1 = optim(par=init,fn=bno,bset=bam,wv=wvec,
-        time=time,kset=1:(time-1),method=&quot;BFGS&quot;)$par
+        time=t,kset=1:(t-1),method=&quot;BFGS&quot;)$par
             
+    # M-step: Fit the compliance mixed effects model
     init2 = c(b0,log(gam))
     e2 = optim(par=init2,fn=pnlog_lik,w=wvec,method=&quot;BFGS&quot;)$par
-
-    ## Calculate relative difference in parameter estimates as a terminating condition
+    
+    # Calculate the relative difference convergence criterion
     rel_diff = sum(abs((c(e1[1:2],exp(e1[3:4]),e2[1],exp(e2[2]))-oe)/oe))
-
+    
+    # Update the number of iterations and parameter estimates
     iter = iter + 1
     oe = c(e1[1:2],exp(e1[3:4]),e2[1],exp(e2[2]))
     a0 = oe[1]; a1 = oe[2]; tau = oe[3]; sig = oe[4]
     b0 = oe[5]; gam = oe[6]
     
-    ## Calculate negative incomplete log likelihood, should decrease with each EM step
-    probsn = apply(lu_mat,1,pfun,beta0=b0,
-        s_mat=matrix(c(1+gam,rep(c(rep(gam,time),1+gam),time-1)),
-        nrow=time),time=time)
-
+    # Calculate the negative incomplete log likelihood
+    # The negative log likelihood should decrease with each iteration
+    probsn = apply(lu_matr,1,pfun,beta0=b0,
+        s_mat=matrix(c(1+gam,rep(c(rep(gam,t),1+gam),t-1)),
+        nrow=t),time=t)[rsums]
     fsn = bno(c(a0,a1,log(tau),log(sig)),bam,lg=FALSE,ft=c,tot=c,neg=1,
-        time=time,kset=1:(time-1))
+        time=t,kset=1:(t-1))
+    ninc = -sum(log(colSums(matrix(probsn*fsn,nrow=2^t))))
 
-    ninc = -sum(log(colSums(matrix(probsn*fsn,nrow=2^time))))
-
-    ## Sign of difference in incomplete negative log likelihoods between iterations, should be negative
+    # Compare the new and previous negative incomplete log likelihood
     s = sign(ninc-oinc)
+    
+    # Update the negative incomplete log likelihood
     oinc = ninc
-    res = rbind(res,c(oe,iter,s))
-}
-
-print(Sys.time()-q)</code></pre>
-<pre><code>## Time difference of 17.48973 mins</code></pre>
-<pre class="r"><code>res2 = cbind(res[,5:6],res[,1:4],res[,7:8])
-colnames(res2) = c(&quot;beta0&quot;,&quot;gamma_sq&quot;,&quot;alpha0&quot;,&quot;alpha1&quot;,&quot;tau_sq&quot;,&quot;sigma_sq&quot;,&quot;iter&quot;,&quot;decrease in incomplete negative log likelihood?&quot;)
-print(res2)</code></pre>
-<pre><code>##               beta0 gamma_sq   alpha0    alpha1    tau_sq  sigma_sq iter
-##   [1,]  0.000000000 1.000000 4.000000 -1.800000 0.7000000 0.3000000    0
-##   [2,] -0.000208508 1.013720 4.021986 -1.816213 0.7369521 0.3041284    1
-##   [3,]  0.007454857 1.034119 4.024491 -1.815972 0.7500521 0.3056187    2
-##   [4,]  0.012607614 1.042650 4.026549 -1.815008 0.7550368 0.3067405    3
-##   [5,]  0.016649528 1.046758 4.027819 -1.813938 0.7567707 0.3076326    4
-##   [6,]  0.019794763 1.049183 4.029349 -1.813343 0.7572658 0.3083056    5
-##   [7,]  0.022519237 1.051239 4.030479 -1.812883 0.7571767 0.3088207    6
-##   [8,]  0.024773112 1.053063 4.031266 -1.812564 0.7569045 0.3092497    7
-##   [9,]  0.026543942 1.054756 4.032118 -1.812377 0.7565416 0.3095931    8
-##  [10,]  0.028059410 1.056356 4.032894 -1.812293 0.7561386 0.3098647    9
-##  [11,]  0.029365538 1.057860 4.033594 -1.812284 0.7557256 0.3100786   10
-##  [12,]  0.030494288 1.059261 4.034221 -1.812325 0.7553206 0.3102461   11
-##  [13,]  0.031470620 1.060550 4.034779 -1.812398 0.7549344 0.3103769   12
-##  [14,]  0.032315051 1.061724 4.035212 -1.812643 0.7546275 0.3104682   13
-##  [15,]  0.032963620 1.062894 4.035644 -1.812743 0.7543194 0.3105314   14
-##  [16,]  0.033522490 1.063639 4.036010 -1.812846 0.7540276 0.3105906   15
-##  [17,]  0.034017218 1.064377 4.036319 -1.812910 0.7537682 0.3106373   16
-##  [18,]  0.034457856 1.065040 4.036430 -1.812848 0.7537349 0.3106479   17
-##  [19,]  0.034791072 1.065414 4.036551 -1.812810 0.7536991 0.3106612   18
-##  [20,]  0.035029891 1.065450 4.037149 -1.812703 0.7535121 0.3107318   19
-##  [21,]  0.035567438 1.065791 4.037128 -1.812772 0.7534782 0.3107403   20
-##  [22,]  0.035801515 1.065836 4.037369 -1.812900 0.7532966 0.3107830   21
-##  [23,]  0.036034125 1.065917 4.037509 -1.812932 0.7531325 0.3108001   22
-##  [24,]  0.036240220 1.066011 4.037620 -1.812966 0.7529972 0.3108110   23
-##  [25,]  0.036414160 1.066114 4.037726 -1.812989 0.7528847 0.3108185   24
-##  [26,]  0.036568792 1.066222 4.037808 -1.813023 0.7527908 0.3108247   25
-##  [27,]  0.036696817 1.066335 4.037892 -1.813040 0.7527108 0.3108295   26
-##  [28,]  0.036813775 1.066448 4.037951 -1.813073 0.7526426 0.3108343   27
-##  [29,]  0.036907300 1.066563 4.038020 -1.813084 0.7525830 0.3108382   28
-##  [30,]  0.036997151 1.066677 4.038060 -1.813117 0.7525314 0.3108428   29
-##  [31,]  0.037333636 1.067252 4.038119 -1.813121 0.7524851 0.3108466   30
-##  [32,]  0.037155000 1.067669 4.038282 -1.813139 0.7524307 0.3108618   31
-##  [33,]  0.037274431 1.067733 4.038257 -1.813176 0.7524194 0.3108651   32
-##  [34,]  0.037323758 1.067800 4.038252 -1.813268 0.7523603 0.3108796   33
-##  [35,]  0.037344430 1.068208 4.038339 -1.813216 0.7523060 0.3108846   34
-##  [36,]  0.037402599 1.068260 4.038331 -1.813241 0.7522964 0.3108878   35
-##  [37,]  0.037523835 1.068527 4.038346 -1.813315 0.7522466 0.3109021   36
-##  [38,]  0.037355114 1.068791 4.038453 -1.813287 0.7521944 0.3109122   37
-##  [39,]  0.037454925 1.068826 4.038427 -1.813318 0.7521854 0.3109149   38
-##  [40,]  0.037493218 1.068866 4.038401 -1.813390 0.7521392 0.3109266   39
-##  [41,]  0.037455594 1.069124 4.038416 -1.813379 0.7521310 0.3109274   40
-##  [42,]  0.037556457 1.069290 4.038446 -1.813389 0.7520875 0.3109379   41
-##  [43,]  0.037526214 1.069437 4.038499 -1.813396 0.7520475 0.3109474   42
-##  [44,]  0.037559488 1.069462 4.038475 -1.813450 0.7520116 0.3109559   43
-##  [45,]  0.037532564 1.069635 4.038487 -1.813441 0.7520053 0.3109564   44
-##  [46,]  0.037609501 1.069745 4.038513 -1.813444 0.7519726 0.3109637   45
-##  [47,]  0.037600244 1.069841 4.038549 -1.813452 0.7519431 0.3109704   46
-##  [48,]  0.037619729 1.069858 4.038541 -1.813484 0.7519167 0.3109761   47
-##  [49,]  0.037618956 1.069974 4.038575 -1.813461 0.7518939 0.3109782   48
-##  [50,]  0.037643733 1.069988 4.038571 -1.813470 0.7518901 0.3109793   49
-##  [51,]  0.037694439 1.070063 4.038573 -1.813496 0.7518710 0.3109841   50
-##  [52,]  0.037679365 1.070079 4.038615 -1.813481 0.7518520 0.3109872   51
-##  [53,]  0.037696713 1.070093 4.038610 -1.813489 0.7518489 0.3109878   52
-##  [54,]  0.037724194 1.070169 4.038603 -1.813511 0.7518337 0.3109904   53
-##  [55,]  0.037710160 1.070184 4.038634 -1.813499 0.7518188 0.3109927   54
-##  [56,]  0.037721352 1.070197 4.038629 -1.813505 0.7518165 0.3109931   55
-##  [57,]  0.037735581 1.070265 4.038622 -1.813523 0.7518048 0.3109953   56
-##  [58,]  0.037725123 1.070277 4.038644 -1.813515 0.7517933 0.3109972   57
-##  [59,]  0.037761243 1.070336 4.038641 -1.813519 0.7517915 0.3109976   58
-##  [60,]  0.037751463 1.070345 4.038650 -1.813530 0.7517809 0.3110005   59
-##  [61,]  0.037734676 1.070399 4.038650 -1.813534 0.7517715 0.3110017   60
-##  [62,]  0.037748463 1.070442 4.038645 -1.813543 0.7517633 0.3110036   61
-##  [63,]  0.037741207 1.070450 4.038660 -1.813537 0.7517556 0.3110053   62
-##  [64,]  0.037766291 1.070486 4.038658 -1.813540 0.7517544 0.3110056   63
-##  [65,]  0.037759465 1.070492 4.038664 -1.813547 0.7517473 0.3110076   64
-##  [66,]  0.037748049 1.070527 4.038663 -1.813550 0.7517411 0.3110086   65
-##  [67,]  0.037756002 1.070554 4.038660 -1.813556 0.7517357 0.3110098   66
-##  [68,]  0.037751618 1.070559 4.038669 -1.813552 0.7517306 0.3110110   67
-##  [69,]  0.037766358 1.070583 4.038668 -1.813554 0.7517298 0.3110112   68
-##  [70,]  0.037762357 1.070587 4.038671 -1.813558 0.7517252 0.3110126   69
-##  [71,]  0.037755289 1.070610 4.038671 -1.813560 0.7517212 0.3110132   70
-##  [72,]  0.037761299 1.070627 4.038669 -1.813564 0.7517177 0.3110140   71
-##  [73,]  0.037758148 1.070631 4.038675 -1.813561 0.7517144 0.3110148   72
-##  [74,]  0.037768971 1.070646 4.038674 -1.813562 0.7517138 0.3110149   73
-##  [75,]  0.037766015 1.070648 4.038677 -1.813565 0.7517108 0.3110158   74
-##  [76,]  0.037760981 1.070663 4.038677 -1.813566 0.7517082 0.3110162   75
-##  [77,]  0.037764462 1.070675 4.038675 -1.813569 0.7517059 0.3110168   76
-##  [78,]  0.037762532 1.070677 4.038679 -1.813567 0.7517037 0.3110172   77
-##  [79,]  0.037768924 1.070687 4.038679 -1.813568 0.7517034 0.3110173   78
-##  [80,]  0.037767179 1.070689 4.038680 -1.813570 0.7517015 0.3110179   79
-##  [81,]  0.037763998 1.070698 4.038680 -1.813571 0.7516997 0.3110182   80
-##  [82,]  0.037766714 1.070706 4.038679 -1.813572 0.7516983 0.3110185   81
-##  [83,]  0.037765285 1.070707 4.038680 -1.813572 0.7516980 0.3110186   82
-##  [84,]  0.037762898 1.070714 4.038681 -1.813572 0.7516966 0.3110189   83
-##  [85,]  0.037764098 1.070715 4.038681 -1.813572 0.7516964 0.3110190   84
-##  [86,]  0.037766411 1.070720 4.038680 -1.813574 0.7516952 0.3110193   85
-##  [87,]  0.037765601 1.070721 4.038682 -1.813573 0.7516941 0.3110196   86
-##  [88,]  0.037766358 1.070722 4.038682 -1.813573 0.7516939 0.3110196   87
-##  [89,]  0.037767477 1.070727 4.038682 -1.813574 0.7516930 0.3110198   88
-##  [90,]  0.037766832 1.070728 4.038683 -1.813574 0.7516922 0.3110200   89
-##  [91,]  0.037769269 1.070732 4.038683 -1.813574 0.7516920 0.3110200   90
-##  [92,]  0.037768627 1.070732 4.038684 -1.813575 0.7516913 0.3110203   91
-##  [93,]  0.037767739 1.070736 4.038684 -1.813575 0.7516906 0.3110204   92
-##  [94,]  0.037768348 1.070740 4.038684 -1.813576 0.7516899 0.3110205   93
-##  [95,]  0.037766732 1.070742 4.038684 -1.813576 0.7516894 0.3110206   94
-##  [96,]  0.037767525 1.070743 4.038684 -1.813576 0.7516893 0.3110207   95
-##  [97,]  0.037769005 1.070745 4.038684 -1.813576 0.7516888 0.3110208   96
-##  [98,]  0.037768441 1.070745 4.038684 -1.813576 0.7516887 0.3110208   97
-##  [99,]  0.037767580 1.070747 4.038685 -1.813576 0.7516882 0.3110209   98
-## [100,]  0.037768088 1.070748 4.038685 -1.813576 0.7516882 0.3110209   99
-## [101,]  0.037769085 1.070749 4.038684 -1.813577 0.7516878 0.3110210  100
-## [102,]  0.037768749 1.070750 4.038685 -1.813577 0.7516877 0.3110211  101
-##        decrease in incomplete negative log likelihood?
-##   [1,]                                              -1
-##   [2,]                                              -1
-##   [3,]                                              -1
-##   [4,]                                              -1
-##   [5,]                                              -1
-##   [6,]                                              -1
-##   [7,]                                              -1
-##   [8,]                                              -1
-##   [9,]                                              -1
-##  [10,]                                              -1
-##  [11,]                                              -1
-##  [12,]                                              -1
-##  [13,]                                              -1
-##  [14,]                                              -1
-##  [15,]                                              -1
-##  [16,]                                              -1
-##  [17,]                                              -1
-##  [18,]                                              -1
-##  [19,]                                              -1
-##  [20,]                                              -1
-##  [21,]                                              -1
-##  [22,]                                              -1
-##  [23,]                                              -1
-##  [24,]                                              -1
-##  [25,]                                              -1
-##  [26,]                                              -1
-##  [27,]                                              -1
-##  [28,]                                              -1
-##  [29,]                                              -1
-##  [30,]                                              -1
-##  [31,]                                              -1
-##  [32,]                                              -1
-##  [33,]                                              -1
-##  [34,]                                              -1
-##  [35,]                                              -1
-##  [36,]                                              -1
-##  [37,]                                              -1
-##  [38,]                                              -1
-##  [39,]                                              -1
-##  [40,]                                              -1
-##  [41,]                                              -1
-##  [42,]                                              -1
-##  [43,]                                              -1
-##  [44,]                                              -1
-##  [45,]                                              -1
-##  [46,]                                              -1
-##  [47,]                                              -1
-##  [48,]                                              -1
-##  [49,]                                              -1
-##  [50,]                                              -1
-##  [51,]                                              -1
-##  [52,]                                              -1
-##  [53,]                                              -1
-##  [54,]                                              -1
-##  [55,]                                              -1
-##  [56,]                                              -1
-##  [57,]                                              -1
-##  [58,]                                              -1
-##  [59,]                                              -1
-##  [60,]                                              -1
-##  [61,]                                              -1
-##  [62,]                                              -1
-##  [63,]                                              -1
-##  [64,]                                              -1
-##  [65,]                                              -1
-##  [66,]                                              -1
-##  [67,]                                              -1
-##  [68,]                                              -1
-##  [69,]                                              -1
-##  [70,]                                              -1
-##  [71,]                                              -1
-##  [72,]                                              -1
-##  [73,]                                              -1
-##  [74,]                                              -1
-##  [75,]                                              -1
-##  [76,]                                              -1
-##  [77,]                                              -1
-##  [78,]                                              -1
-##  [79,]                                              -1
-##  [80,]                                              -1
-##  [81,]                                              -1
-##  [82,]                                              -1
-##  [83,]                                              -1
-##  [84,]                                              -1
-##  [85,]                                              -1
-##  [86,]                                              -1
-##  [87,]                                              -1
-##  [88,]                                              -1
-##  [89,]                                              -1
-##  [90,]                                              -1
-##  [91,]                                              -1
-##  [92,]                                              -1
-##  [93,]                                              -1
-##  [94,]                                              -1
-##  [95,]                                              -1
-##  [96,]                                              -1
-##  [97,]                                              -1
-##  [98,]                                              -1
-##  [99,]                                              -1
-## [100,]                                              -1
-## [101,]                                              -1
-## [102,]                                              -1</code></pre>
-<pre class="r"><code>## Comparison of parameter estimates to truth
-comp_mat = rbind(c(beta0_t,gamma_t,alpha0_t,alpha1_t,tau_t,sigma_t),c(res2[nrow(res2),1:2],res2[nrow(res2),3:6]))
-rownames(comp_mat) = c(&quot;Truth&quot;, &quot;Estimate&quot;)
-print(comp_mat)</code></pre>
-<pre><code>##               beta0 gamma_sq   alpha0    alpha1    tau_sq  sigma_sq
-## Truth    0.00000000  1.00000 4.000000 -1.800000 0.7000000 0.3000000
-## Estimate 0.03776875  1.07075 4.038685 -1.813577 0.7516877 0.3110211</code></pre>
+}</code></pre>
+</div>
+<div id="check-that-negative-incomplete-log-likelihood-decreased-with-each-iteration" class="section level3">
+<h3>Check that negative incomplete log likelihood decreased with each iteration</h3>
+<pre class="r"><code>s</code></pre>
+<pre><code>## [1] -1</code></pre>
+</div>
+<div id="compare-parameter-estimates-with-truth" class="section level3">
+<h3>Compare parameter estimates with truth</h3>
+<pre class="r"><code>res = rbind(c(beta0_t,sqrt(gamma_t),alpha0_t,alpha1_t,sqrt(tau_t),sqrt(sigma_t)),
+    c(oe[5],sqrt(oe[6]),oe[1:2],sqrt(oe[3:4])))
+colnames(res) = c(&quot;beta0&quot;,&quot;gamma&quot;,&quot;alpha0&quot;,&quot;alpha1&quot;,&quot;tau&quot;,&quot;sigma&quot;)
+rownames(res) = c(&quot;truth&quot;,&quot;estimate&quot;)
+print(res)</code></pre>
+<pre><code>##                beta0    gamma  alpha0    alpha1       tau     sigma
+## truth    0.000000000 1.000000 4.00000 -2.100000 0.8366600 0.5477226
+## estimate 0.009738892 1.032592 4.02549 -2.107915 0.8624587 0.5627163</code></pre>
+</div>
 </div>
 
 

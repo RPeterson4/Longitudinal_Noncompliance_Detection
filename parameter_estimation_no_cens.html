@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
 
 <head>
 
 <meta charset="utf-8" />
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="pandoc" />
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
@@ -84,7 +83,6 @@ code {
 }
 img {
   max-width:100%;
-  height: auto;
 }
 .tabbed-pane {
   padding-top: 12px;
@@ -146,6 +144,7 @@ summary {
   border: none;
   display: inline-block;
   border-radius: 4px;
+  background-color: transparent;
 }
 
 .tabset-dropdown > .nav-tabs.nav-tabs-open > li {
@@ -181,55 +180,22 @@ summary {
 </div>
 
 
-<div id="code-to-estimate-parameters-for-simulated-data-with-no-left-censoring." class="section level3">
-<h3>Code to estimate parameters for simulated data with no left-censoring.</h3>
+<div id="file-of-parameter-estimation-without-censoring" class="section level1">
+<h1>File of parameter estimation without censoring</h1>
 </div>
-<div id="sample-size-set-to-n-10000-with-k-5-time-points." class="section level3">
-<h3>Sample size set to n = 10000 with K = 5 time points.</h3>
+<div id="takes-1-minute-to-run-one-simulation-for-n-100-participants-and-k-6-time-points" class="section level1">
+<h1>Takes 1 minute to run one simulation for n = 100 participants and K = 6 time points</h1>
+<div id="set-the-number-of-participants-and-time-points-in-the-data-set" class="section level3">
+<h3>Set the number of participants and time points in the data set</h3>
+<pre class="r"><code>n = 100; t = 6</code></pre>
 </div>
-<div id="code-takes-2-minutes-to-run." class="section level3">
-<h3>Code takes 2 minutes to run.</h3>
+<div id="source-the-functions-file" class="section level3">
+<h3>Source the functions file</h3>
+<pre class="r"><code>source(&quot;C:/Users/rlpet/Documents/GitHub/Longitudinal_Noncompliance_Detection/functions.R&quot;)</code></pre>
 </div>
-<div id="parameters-defaulted-to-the-simulation-scenario-where-alpha_1-1.8." class="section level3">
-<h3>Parameters defaulted to the simulation scenario where <span class="math inline">\(\alpha_1=-1.8\)</span>.</h3>
-<pre class="r"><code>## Packages for multivariate normal distribution and compliance patterns
-library(mvtnorm)
-library(gtools)
-
-## Set sample size (n), time points (t), and true parameter values
-n = 10000; t = 5;
-alpha0_t = 4.0; alpha1_t = -1.8; tau_t = 0.7; sigma_t = 0.3
-beta0_t = 0; gamma_t = 1
-
-## Variables required for calculating compliance patterns
-ps = permutations(2,t,v=0:1,repeats.allowed=TRUE)
-cam = ps[rep(1:2^t,n),]
-lu_mat = cbind(apply(ps,2,function(x){ifelse(x==1,-Inf,0)}),
-    apply(ps,2,function(x){ifelse(x==1,0,Inf)}))
-
-## Helper function for calculating multivariate normal CDF for each row of a matrix for probit model
-pfun = function(vec,beta0,s_mat,time){
-    set.seed(1)
-    return(pmvnorm(vec[1:time],vec[(time+1):(2*time)],
-    -beta0,sigma=s_mat)[1])
-}
-
-## Compliance log likelihood assuming a probit link
-pnlog_lik = function(x,w){
-    return(-sum(w*log(apply(lu_mat,1,pfun,beta0=x[1],
-    s_mat=matrix(c(1+exp(x[2]),rep(c(rep(exp(x[2]),t),1+exp(x[2])),t-1)),
-    nrow=t),time=t))))
-}
-
-## Biomarker log likelihood assuming an identity link with no censoring
-bnlog_lik = function(x,bset,w){
-    return(-sum(w*dmvnorm(bset-x[1]-x[2]*cam, 
-    sigma=matrix(c(exp(x[3])+exp(x[4]),rep(c(rep(exp(x[3]),t),exp(x[3])+exp(x[4])),t-1)),
-    nrow=t),log=TRUE)))
-}
-
-## Data generation
-set.seed(1)
+<div id="generate-data-as-compound-symmetry" class="section level3">
+<h3>Generate data as Compound Symmetry</h3>
+<pre class="r"><code>set.seed(292015)
 rs = rnorm(n,0,sqrt(gamma_t))
 rs2 = rnorm(n,0,sqrt(tau_t))        
 b_mat = matrix(NA, n, t)
@@ -237,158 +203,90 @@ c_mat = matrix(NA, n, t)
 for(j in 1:t){
     c_mat[,j] = rbinom(n,1,pnorm(beta0_t+rs))
     b_mat[,j] = rnorm(n,alpha0_t+alpha1_t*c_mat[,j]+rs2,sqrt(sigma_t))
-}
-
-## Replicate biomarker matrix 2^t times for each compliance pattern
-bam = b_mat[rep(1:nrow(b_mat),rep(2^t,n)),]
-
-## Set starting values of EM algorithm at truth
-oe = c(alpha0_t,alpha1_t,tau_t,sigma_t,beta0_t,gamma_t)
-
-rel_diff = 10; iter = 0; oinc = 1e6; s = -1;
-res = rbind(c(oe,iter,s))
-
-q = Sys.time()
-
-## The EM algorithm
-while(rel_diff &gt; 1e-05){
-    ## E step
-    probs = apply(lu_mat,1,pfun,beta0=oe[5],
+}</code></pre>
+</div>
+<div id="to-generate-data-as-ar1-uncomment-this-code" class="section level3">
+<h3>To generate data as AR(1), uncomment this code</h3>
+<pre class="r"><code># c_mat = ps[sample(1:2^t,n,replace=TRUE,prob=probs_AR1),]
+# b_mat = t(apply(c_mat,1,bgen))</code></pre>
+</div>
+<div id="replicate-the-longitudinal-biomarker-2t-times-for-the-2t-compliance-patterns" class="section level3">
+<h3>Replicate the longitudinal biomarker 2^t times for the 2^t compliance patterns</h3>
+<pre class="r"><code>bam = b_mat[rep(1:nrow(b_mat),rep(2^t,n)),]</code></pre>
+</div>
+<div id="start-parameter-estimates-at-the-truth" class="section level3">
+<h3>Start parameter estimates at the truth</h3>
+<pre class="r"><code>oe = c(alpha0_t,alpha1_t,tau_t,sigma_t,beta0_t,gamma_t)</code></pre>
+</div>
+<div id="define-objects-needed-to-run-the-em-algorithm" class="section level3">
+<h3>Define objects needed to run the EM algorithm</h3>
+<pre class="r"><code>rel_diff = 10; iter = 0; oinc = 1e6; s = -1</code></pre>
+</div>
+<div id="em-algorithm-assuming-compound-symmetry-covariance-structures" class="section level3">
+<h3>EM algorithm assuming Compound Symmetry covariance structures</h3>
+<pre class="r"><code>while(rel_diff &gt; 1e-05){
+    # E-step: Calculate the marginal compliance probabilities
+    probs = apply(lu_matr,1,pfun,beta0=oe[5],
         s_mat=matrix(c(1+oe[6],rep(c(rep(oe[6],t),1+oe[6]),t-1)),
-        nrow=t),time=t)
+        nrow=t),time=t)[rsums]
     
-    fs = dmvnorm(bam-oe[1]-oe[2]*cam,
-        sigma=matrix(c(oe[3]+oe[4],rep(c(rep(oe[3],t),oe[3]+oe[4]),t-1)),
+    # E-step: Calculate the densities of the biomarker
+    fs = dmvnorm(bam-oe[1]-oe[2]*cam,z, 
+        matrix(c(oe[3]+oe[4],rep(c(rep(oe[3],t),oe[3]+oe[4]),t-1)),
         nrow=t))
 
+    # E-step: Calculate the weights
     m = matrix(probs*fs,nrow=2^t)
     wvec = as.vector(t(t(m)/colSums(m)))
 
-    ## M step
+    # M-step: Fit the biomarker mixed effects model
     init = c(oe[1],oe[2],log(oe[3]),log(oe[4]))
     e1 = optim(par=init,fn=bnlog_lik,bset=bam,w=wvec,method=&quot;BFGS&quot;)$par
             
+    # M-step: Fit the compliance mixed effects model
     init2 = c(oe[5],log(oe[6]))
     e2 = optim(par=init2,fn=pnlog_lik,w=wvec,method=&quot;BFGS&quot;)$par 
 
-    ## Calculate relative difference in parameter estimates as a terminating condition
+    # Calculate the relative difference convergence criterion
     rel_diff = sum(abs((c(e1[1:2],exp(e1[3:4]),e2[1],exp(e2[2]))-oe)/oe))
 
+    # Update the number of iterations and parameter estimates
     iter = iter + 1
     oe = c(e1[1:2],exp(e1[3:4]),e2[1],exp(e2[2]))
 
-    ## Calculate negative incomplete log likelihood, should decrease with each EM step
-    probsn = apply(lu_mat,1,pfun,beta0=e2[1],
-        s_mat=matrix(c(1+exp(e2[2]),rep(c(rep(exp(e2[2]),t),1+exp(e2[2])),t-1)),
-        nrow=t),time=t)
-
-    fsn = dmvnorm(bam-e1[1]-e1[2]*cam, 
-        sigma=matrix(c(exp(e1[3])+exp(e1[4]),rep(c(rep(exp(e1[3]),t),exp(e1[3])+exp(e1[4])),t-1)),
-        nrow=t)) 
-
+    # Calculate the negative incomplete log likelihood
+    # The negative log likelihood should decrease with each iteration
+    probsn = apply(lu_matr,1,pfun,beta0=oe[5],
+        s_mat=matrix(c(1+oe[6],rep(c(rep(oe[6],t),1+oe[6]),t-1)),
+        nrow=t),time=t)[rsums]
+    fsn = dmvnorm(bam-oe[1]-oe[2]*cam,z, 
+        matrix(c(oe[3]+oe[4],rep(c(rep(oe[3],t),oe[3]+oe[4]),t-1)),
+        nrow=t))
     ninc = -sum(log(colSums(matrix(probsn*fsn,nrow=2^t))))
+    
+    # Compare the new and previous negative incomplete log likelihood
+    s = max(s,sign(ninc-oinc))
 
-    ## Sign of difference in incomplete negative log likelihoods between iterations, should be negative
-    s = sign(ninc-oinc)
-
+    # Update the negative incomplete log likelihood
     oinc = ninc
-    res = rbind(res,c(oe,iter,s))
-}
-
-print(Sys.time()-q)</code></pre>
-<pre><code>## Time difference of 1.955259 mins</code></pre>
-<pre class="r"><code>res2 = cbind(res[,5:6],res[,1:4],res[,7:8])
-colnames(res2) = c(&quot;beta0&quot;,&quot;gamma_sq&quot;,&quot;alpha0&quot;,&quot;alpha1&quot;,&quot;tau_sq&quot;,&quot;sigma_sq&quot;,&quot;iter&quot;,&quot;decrease in incomplete negative log likelihood?&quot;)
-print(res2)</code></pre>
-<pre><code>##              beta0 gamma_sq   alpha0    alpha1    tau_sq  sigma_sq iter
-##  [1,]  0.000000000 1.000000 4.000000 -1.800000 0.7000000 0.3000000    0
-##  [2,] -0.002975973 1.023875 3.997901 -1.800198 0.6981860 0.3007819    1
-##  [3,] -0.005534677 1.035019 3.997178 -1.801768 0.6967397 0.3015898    2
-##  [4,] -0.007507767 1.042914 3.996773 -1.802490 0.6953306 0.3021228    3
-##  [5,] -0.008836918 1.048051 3.996459 -1.803091 0.6941663 0.3025400    4
-##  [6,] -0.009779720 1.051735 3.996182 -1.803502 0.6935717 0.3027746    5
-##  [7,] -0.010470637 1.054177 3.995943 -1.803871 0.6934023 0.3030511    6
-##  [8,] -0.011012771 1.056145 3.995776 -1.803986 0.6931679 0.3031784    7
-##  [9,] -0.011554883 1.057223 3.995638 -1.804224 0.6930687 0.3032515    8
-## [10,] -0.012005583 1.057642 3.995555 -1.804258 0.6929620 0.3032918    9
-## [11,] -0.012070985 1.058009 3.995445 -1.804296 0.6928659 0.3033173   10
-## [12,] -0.012197606 1.058324 3.995405 -1.804289 0.6927802 0.3033348   11
-## [13,] -0.012223936 1.058570 3.995362 -1.804316 0.6927064 0.3033502   12
-## [14,] -0.012278958 1.058782 3.995351 -1.804320 0.6926413 0.3033613   13
-## [15,] -0.012288518 1.058952 3.995337 -1.804340 0.6925851 0.3033710   14
-## [16,] -0.012311733 1.059098 3.995335 -1.804381 0.6923394 0.3034076   15
-## [17,] -0.012332799 1.059276 3.995345 -1.804359 0.6923268 0.3034002   16
-## [18,] -0.012310151 1.059387 3.995337 -1.804388 0.6923174 0.3034013   17
-## [19,] -0.012335111 1.059483 3.995348 -1.804389 0.6923075 0.3034023   18
-## [20,] -0.012321592 1.059555 3.995347 -1.804403 0.6922988 0.3034046   19
-## [21,] -0.012331288 1.059616 3.995355 -1.804405 0.6922902 0.3034062   20
-## [22,] -0.012323967 1.059664 3.995356 -1.804413 0.6922826 0.3034080   21
-## [23,] -0.012327669 1.059704 3.995360 -1.804415 0.6922755 0.3034094   22
-## [24,] -0.012323764 1.059737 3.995362 -1.804420 0.6922691 0.3034107   23
-## [25,] -0.012325052 1.059764 3.995365 -1.804422 0.6922634 0.3034117   24
-## [26,] -0.012322935 1.059786 3.995366 -1.804425 0.6922583 0.3034126   25
-## [27,] -0.012323266 1.059805 3.995368 -1.804427 0.6922537 0.3034133   26
-## [28,] -0.012322081 1.059820 3.995369 -1.804429 0.6922497 0.3034140   27
-## [29,] -0.012322058 1.059833 3.995371 -1.804430 0.6922461 0.3034145   28
-## [30,] -0.012321367 1.059844 3.995372 -1.804432 0.6922430 0.3034150   29
-## [31,] -0.012321235 1.059853 3.995376 -1.804436 0.6922292 0.3034169   30
-## [32,] -0.012319093 1.059865 3.995376 -1.804434 0.6922284 0.3034164   31
-## [33,] -0.012318611 1.059872 3.995375 -1.804436 0.6922279 0.3034165   32
-## [34,] -0.012319752 1.059878 3.995376 -1.804436 0.6922273 0.3034166   33
-## [35,] -0.012319358 1.059882 3.995376 -1.804437 0.6922267 0.3034168   34
-## [36,] -0.012319784 1.059886 3.995376 -1.804437 0.6922262 0.3034169   35
-## [37,] -0.012319540 1.059889 3.995376 -1.804437 0.6922258 0.3034170   36
-## [38,] -0.012319691 1.059892 3.995376 -1.804437 0.6922253 0.3034171   37
-## [39,] -0.012319546 1.059894 3.995376 -1.804438 0.6922249 0.3034172   38
-## [40,] -0.012319591 1.059895 3.995376 -1.804438 0.6922246 0.3034172   39
-##       decrease in incomplete negative log likelihood?
-##  [1,]                                              -1
-##  [2,]                                              -1
-##  [3,]                                              -1
-##  [4,]                                              -1
-##  [5,]                                              -1
-##  [6,]                                              -1
-##  [7,]                                              -1
-##  [8,]                                              -1
-##  [9,]                                              -1
-## [10,]                                              -1
-## [11,]                                              -1
-## [12,]                                              -1
-## [13,]                                              -1
-## [14,]                                              -1
-## [15,]                                              -1
-## [16,]                                              -1
-## [17,]                                              -1
-## [18,]                                              -1
-## [19,]                                              -1
-## [20,]                                              -1
-## [21,]                                              -1
-## [22,]                                              -1
-## [23,]                                              -1
-## [24,]                                              -1
-## [25,]                                              -1
-## [26,]                                              -1
-## [27,]                                              -1
-## [28,]                                              -1
-## [29,]                                              -1
-## [30,]                                              -1
-## [31,]                                              -1
-## [32,]                                              -1
-## [33,]                                              -1
-## [34,]                                              -1
-## [35,]                                              -1
-## [36,]                                              -1
-## [37,]                                              -1
-## [38,]                                              -1
-## [39,]                                              -1
-## [40,]                                              -1</code></pre>
-<pre class="r"><code>## Comparison of parameter estimates to truth
-comp_mat = rbind(c(beta0_t,gamma_t,alpha0_t,alpha1_t,tau_t,sigma_t),c(res2[nrow(res2),1:2],res2[nrow(res2),3:6]))
-rownames(comp_mat) = c(&quot;Truth&quot;, &quot;Estimate&quot;)
-print(comp_mat)</code></pre>
-<pre><code>##                beta0 gamma_sq   alpha0    alpha1    tau_sq  sigma_sq
-## Truth     0.00000000 1.000000 4.000000 -1.800000 0.7000000 0.3000000
-## Estimate -0.01231959 1.059895 3.995376 -1.804438 0.6922246 0.3034172</code></pre>
+}</code></pre>
+</div>
+<div id="check-that-negative-incomplete-log-likelihood-decreased-with-each-iteration" class="section level3">
+<h3>Check that negative incomplete log likelihood decreased with each iteration</h3>
+<pre class="r"><code>s</code></pre>
+<pre><code>## [1] -1</code></pre>
+</div>
+<div id="compare-parameter-estimates-with-truth" class="section level3">
+<h3>Compare parameter estimates with truth</h3>
+<pre class="r"><code>res = rbind(c(beta0_t,sqrt(gamma_t),alpha0_t,alpha1_t,sqrt(tau_t),sqrt(sigma_t)),
+    c(oe[5],sqrt(oe[6]),oe[1:2],sqrt(oe[3:4])))
+colnames(res) = c(&quot;beta0&quot;,&quot;gamma&quot;,&quot;alpha0&quot;,&quot;alpha1&quot;,&quot;tau&quot;,&quot;sigma&quot;)
+rownames(res) = c(&quot;truth&quot;,&quot;estimate&quot;)
+res</code></pre>
+<pre><code>##                beta0    gamma   alpha0    alpha1       tau     sigma
+## truth     0.00000000 1.000000 4.000000 -2.100000 0.8366600 0.5477226
+## estimate -0.02863388 1.064081 3.969873 -2.122547 0.8780583 0.5426821</code></pre>
+</div>
 </div>
 
 

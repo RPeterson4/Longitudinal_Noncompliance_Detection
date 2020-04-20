@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
 
 <head>
 
 <meta charset="utf-8" />
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
 
@@ -69,9 +69,7 @@ h6 {
 </style>
 
 
-</head>
 
-<body>
 
 <style type="text/css">
 .main-container {
@@ -85,30 +83,91 @@ code {
 }
 img {
   max-width:100%;
-  height: auto;
 }
 .tabbed-pane {
   padding-top: 12px;
 }
+.html-widget {
+  margin-bottom: 20px;
+}
 button.code-folding-btn:focus {
   outline: none;
+}
+summary {
+  display: list-item;
 }
 </style>
 
 
 
-<div class="container-fluid main-container">
-
 <!-- tabsets -->
-<script>
-$(document).ready(function () {
-  window.buildTabsets("TOC");
-});
-</script>
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
 
 <!-- code folding -->
 
 
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
 
 
 
@@ -121,218 +180,32 @@ $(document).ready(function () {
 </div>
 
 
-<div id="code-used-to-derive-the-parameter-estimates-for-cenic-p1s2." class="section level3">
-<h3>Code used to derive the parameter estimates for CENIC-P1S2.</h3>
+<div id="code-to-implement-the-method-from-the-paper-entitled-detecting-participant-noncompliance-across-multiple-time-points-by-modeling-a-longitudinal-biomarker." class="section level1">
+<h1>Code to implement the method from the paper entitled “Detecting Participant Noncompliance Across Multiple Time Points By Modeling a Longitudinal Biomarker”.</h1>
+<div id="requires-the-r-programming-language-with-packages-gtools-mvtnorm-matrixstats-and-proc." class="section level2">
+<h2>Requires the R programming language with packages “gtools”, “mvtnorm”, “matrixStats”, and “pROC”.</h2>
 </div>
-<div id="code-does-not-run-as-the-dataset-is-proprietary." class="section level3">
-<h3>Code does not run as the dataset is proprietary.</h3>
-<pre class="r"><code>library(gtools)
-library(mvtnorm)
-dset5 = ## CENIC-P1S2 dataset
-time = 6; loq = log(0.001)
-
-hotel_a = ## hotel dataset from Denlinger et al.
-
-f = function(x,minimum=0.001){return(which(x==minimum))}
-f2 = function(x){return(length(f(x)))}
-
-pfun = function(vec,beta0,s_mat,time){
-    set.seed(1)
-    return(pmvnorm(vec[1:time],vec[(time+1):(2*time)],
-    -beta0,sigma=s_mat)[1])
-}
-
-pnlog_lik = function(x,wv){
-    log_Lik = NULL
-    for(i in 1:time){
-        log_Lik = c(log_Lik,wv[[i]]*log(apply(lu_mats[[i]],1,
-            pfun,beta0=x[1],s_mat=matrix(c(1+exp(x[2]),rep(c(rep(exp(x[2]),i),
-            1+exp(x[2])),i-1)),nrow=i),time=i)))
-    }
-    return(-sum(log_Lik))
-}
-
-pfun2 = function(vec,s_mat,time){
-    set.seed(1)
-    return(pmvnorm(vec[1:time],vec[(time+1):(2*time)],
-    vec[(2*time+1):(3*time)],sigma=s_mat)[1])
-}
-
-bfun = function(vec,s_mat){
-    return(dmvnorm(vec,sigma=s_mat))
-}
-
-mats = list()
-bmats = list()
-inds_mats = list()
-psmats = list()
-lu_mats = list()
-ks_mats = list()
-
-for(i in 0:(time-2)){
-    m = dset5[rowSums(is.na(dset5))==i,]
-    m = t(apply(m,1,sort))      
-    rs = apply(m,1,f2)
-    pseudo = cbind(1:nrow(m),rs)
-    ks = sort(unique(pseudo[,2]))
-    ks_mats[[time-i]] = ks[ks&gt;0&amp;ks&lt;(time-i)]
-    mats[[time-i]] = log(m[pseudo[order(pseudo[,2]),][,1],])
-    n = nrow(mats[[time-i]])
-    bmats[[time-i]] = mats[[time-i]][rep(1:n,rep(2^(time-i),n)),]
-    inds_mats[[time-i]] = ifelse(bmats[[time-i]]&lt;=loq,0,1)
-    pi = permutations(2,time-i,v=0:1,repeats.allowed=TRUE)
-    psmats[[time-i]] = pi
-    lu_mats[[time-i]] = cbind(apply(pi,2,function(x){ifelse(x==1,-Inf,0)}),
-                    apply(pi,2,function(x){ifelse(x==1,0,Inf)}))
-}
-
-mats[[1]] = sort(log(as.vector(t(apply(dset5[rowSums(is.na(dset5))==5,],1,
-            function(x){return(x[complete.cases(x)])})))),decreasing=TRUE)
-len = length(mats[[1]])
-bmats[[1]] = mats[[1]][rep(1:len,rep(2,len))]
-inds_mats[[1]] = ifelse(bmats[[1]]&lt;=loq,0,1)
-psmats[[1]] = c(0,1)
-lu_mats[[1]] = rbind(c(0,Inf),c(-Inf,0))
-
-oe = c(-3.5,-2.6,1.2,0.6,-0.5,5)
-
-x = c(oe[1:2],log(oe[3:4]))
-
-bno = function(x,bset,lg=TRUE,ft=log,wv=1,time,kset,inds_mat,psm){
-    a0 = x[1]; a1 = x[2]; tau = exp(x[3]); sig = exp(x[4])
-    sm = matrix(c(tau+sig,rep(c(rep(tau,time),tau+sig),time-1)),nrow=time)
-
-    subao = cbind(bset[which(rowSums(inds_mat)==time),])
-    cam = psm[rep(1:nrow(psm),nrow(subao)/2^time),]
-    lik = dmvnorm(subao-a0-a1*cam,sigma=sm,log=lg)
-
-    for(k in kset){
-        subm = rbind(bset[which(rowSums(inds_mat)==time-k),])
-
-        bs = cbind(subm[,(k+1):time])
-        nc = nrow(subm)
-        psk = permutations(2,time-k,v=0:1,repeats.allowed=TRUE)
-        camk = cbind(psk[rep(1:nrow(psk),2^k*nrow(subm)/2^time),])
-        vals = bs-a0-a1*camk
-        tt = matrix(c(tau+sig,rep(c(rep(tau,time-k),tau+sig),time-k-1)),nrow=time-k)
-        fs = apply(vals,1,bfun,s_mat=rbind(tt))
-    
-        oo = matrix(c(tau+sig,rep(c(rep(tau,k),tau+sig),k-1)),nrow=k)
-        ot = matrix(tau,nrow=k,ncol=time-k)
-        tti = solve(tt)
-
-        dm = ot%*%tti[1:nrow(tti),1:ncol(tti)]%*%t(vals[1:nrow(vals),1:ncol(vals)])
-        sc = oo-ot%*%tti%*%t(ot)
-        psk2 = cbind(psm[,1:k])
-        camk2 = cbind(psk2[rep(1:nrow(psk2),nrow(subm)/2^time),])
-        mu = a0+a1*camk2+t(dm)
-        bounds = rep(c(-Inf,loq),each=k)
-        a_m = cbind(matrix(rep(bounds,nc),nrow=nc,byrow=TRUE),mu)
-        fc = apply(a_m,1,pfun2,s_mat=sc,time=k)
-        lik = c(lik,ft(fs*fc))
-    }
-
-    ai = rbind(rep(c(-Inf,loq),each=time))
-    a_a = cbind(ai[rep(1,2^time),],a0+a1*psm)
-    ps = apply(a_a,1,pfun2,s_mat=sm,time=time)
-    lik = c(lik,rep(ft(ps),nrow(cbind(bset[which(rowSums(inds_mat)==0),]))/2^time))
-    return(wv*lik)
-}
-
-bnlog_lik = function(x,wv){
-    log_Lik = NULL
-    for(i in 1:time){
-        bam = cbind(bmats[[i]])
-        lu_mat = lu_mats[[i]]
-        log_Lik = c(log_Lik,bno(x=x,bset=bam,wv=wv[[i]],time=i,kset=ks_mats[[i]],
-            inds_mat=cbind(inds_mats[[i]]),psm=cbind(psmats[[i]])))
-    }
-    log_Lik = c(log_Lik,dnorm(hotel_a-x[1]-x[2],sd=sqrt(exp(x[3])+exp(x[4])),log=TRUE))
-    return(-sum(log_Lik))
-}
-
-rel_diff = 10; iter = 0; oinc = 1e6; s = -1
-nres = rbind(c(oe,iter,s,oinc))
-
-q = Sys.time()
-while(rel_diff &gt; 1e-05){
-    print(c(oe,iter,s,oinc))
-    a0 = oe[1]; a1 = oe[2]; tau = oe[3]; sig = oe[4]
-    b0 = oe[5]; gam = oe[6]
-
-    wvec = list()
-    for(i in 1:time){
-        bam = cbind(bmats[[i]])
-        lu_mat = lu_mats[[i]]
-        probs = apply(lu_mat,1,pfun,beta0=b0,
-            s_mat=matrix(c(1+gam,rep(c(rep(gam,i),1+gam),i-1)),
-            nrow=i),time=i)
-        fs = bno(x=c(a0,a1,log(tau),log(sig)),bset=bam,lg=FALSE,ft=c,
-            time=i,kset=ks_mats[[i]],inds_mat=cbind(inds_mats[[i]]),
-            psm=cbind(psmats[[i]]))
-        m = matrix(probs*fs,nrow=2^i)
-        wvec[[i]] = as.vector(t(t(m)/colSums(m)))
-    }
-
-    init = c(a0,a1,log(tau),log(sig))
-    e1 = optim(par=init,fn=bnlog_lik,wv=wvec,method=&quot;BFGS&quot;)$par
-            
-    init2 = c(b0,log(gam))
-    e2 = optim(par=init2,fn=pnlog_lik,wv=wvec,method=&quot;BFGS&quot;)$par
-
-    rel_diff = sum(abs((c(e1[1:2],exp(e1[3:4]),e2[1],exp(e2[2]))-oe)/oe))
-
-    iter = iter + 1
-    oe = c(e1[1:2],exp(e1[3:4]),e2[1],exp(e2[2]))
-    a0 = oe[1]; a1 = oe[2]; tau = oe[3]; sig = oe[4]
-    b0 = oe[5]; gam = oe[6]
-
-    log_Lik = NULL
-
-    for(i in 1:time){
-        bam = cbind(bmats[[i]])
-        lu_mat = lu_mats[[i]]
-        probsn = apply(lu_mat,1,pfun,beta0=b0,
-            s_mat=matrix(c(1+gam,rep(c(rep(gam,i),1+gam),i-1)),
-            nrow=i),time=i)
-        fsn = bno(x=c(a0,a1,log(tau),log(sig)),bset=bam,lg=FALSE,ft=c,
-            time=i,kset=ks_mats[[i]],inds_mat=cbind(inds_mats[[i]]),
-            psm=cbind(psmats[[i]]))
-        log_Lik = c(log_Lik,colSums(matrix(probsn*fsn,nrow=2^i)))
-    }
-
-    log_Lik = c(log_Lik,dnorm(hotel_a-a0-a1,sd=sqrt(tau+sig)))
-
-    ninc = -sum(log(log_Lik))
-    s = sign(ninc-oinc)
-    oinc = ninc
-    nres = rbind(nres,c(oe,iter,s,oinc))
-}
-
-Sys.time() - q
-print(nres)
-
-log_Lik_fn = function(oe){
-  a0 = oe[1]; a1 = oe[2]; tau = oe[3]^2; sig = oe[4]^2
-  b0 = oe[5]; gam = oe[6]^2
-  log_Lik = NULL
-  for(i in 1:time){
-  bam = cbind(bmats[[i]])
-  lu_mat = lu_mats[[i]]
-  probsn = apply(lu_mat,1,pfun,beta0=b0,
-  s_mat=matrix(c(1+gam,rep(c(rep(gam,i),1+gam),i-1)),
-  nrow=i),time=i)
-  fsn = bno(x=c(a0,a1,log(tau),log(sig)),bset=bam,lg=FALSE,ft=c,
-  time=i,kset=ks_mats[[i]],inds_mat=cbind(inds_mats[[i]]),
-  psm=cbind(psmats[[i]]))
-  log_Lik = c(log_Lik,colSums(matrix(probsn*fsn,nrow=2^i)))
-  }
-  log_Lik = c(log_Lik,dnorm(hotel_a-a0-a1,sd=sqrt(tau+sig)))
-  return(-sum(log(log_Lik)))
-}
-
-nlm_r = nlm(f=log_Lik_fn,p=c(-3.561979,-2.363655,sqrt(0.9670717),sqrt(0.5154328),-0.3592389,sqrt(8.437472)),hessian=TRUE)
-round(diag(solve(nlm_r$hessian)),3)</code></pre>
+<div id="there-are-four-files" class="section level2">
+<h2>There are four files:</h2>
+<div id="functions.r-an-r-file-that-defines-a-number-of-objects-and-functions-required-to-implement-the-method.-the-true-values-of-the-parameters-are-defined-here." class="section level3">
+<h3>1) functions.R, an R file that defines a number of objects and functions required to implement the method. The true values of the parameters are defined here.</h3>
+</div>
+<div id="parameter_estimation_no_cens.rmd-an-rmd-file-that-gives-an-example-of-how-to-estimate-the-parameters-without-censoring." class="section level3">
+<h3>2) parameter_estimation_no_cens.Rmd, an RMD file that gives an example of how to estimate the parameters without censoring.</h3>
+</div>
+<div id="parameter_estimation_cens.rmd-an-rmd-file-that-gives-an-example-of-how-to-estimate-the-parameters-with-a-left-censored-biomarker." class="section level3">
+<h3>3) parameter_estimation_cens.Rmd, an RMD file that gives an example of how to estimate the parameters with a left-censored biomarker.</h3>
+</div>
+<div id="auc_calculation-an-rmd-file-that-uses-a-given-set-of-parameter-values-to-calculate-the-auc-values-for-the-three-compliance-probabilities.-a-comparison-with-the-method-from-boatman-et.-al-is-included." class="section level3">
+<h3>4) auc_calculation, an RMD file that uses a given set of parameter values to calculate the AUC values for the three compliance probabilities. A comparison with the method from Boatman et. al is included.</h3>
+</div>
+</div>
+<div id="each-file-is-defaulted-to-generate-data-as-compound-symmetry.-code-in-each-file-can-be-uncommented-to-generate-data-as-ar1.-the-models-fit-assume-compound-symmetry." class="section level2">
+<h2>Each file is defaulted to generate data as Compound Symmetry. Code in each file can be uncommented to generate data as AR(1). The models fit assume Compound Symmetry.</h2>
+</div>
+<div id="written-by-ross-peterson-phd-candidate-in-biostatistics-at-the-university-of-minnesota.-email-pet00180umn.edu" class="section level2">
+<h2>Written by Ross Peterson, PhD Candidate in Biostatistics at the University of Minnesota. Email: <a href="mailto:pet00180@umn.edu">pet00180@umn.edu</a></h2>
+</div>
 </div>
 
 
@@ -352,6 +225,23 @@ $(document).ready(function () {
 
 
 </script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
 
 <!-- dynamically load mathjax for compatibility with self-contained -->
 <script>
