@@ -63,11 +63,9 @@ while(rel_diff > 1e-05){
 	probs = apply(lu_matr,1,pfun,beta0=b0,
 		s_mat=matrix(c(1+gam,rep(c(rep(gam,t),1+gam),t-1)),
 		nrow=t),time=t)[rsums]
-
 	# E-step: Calculate the densities of the biomarker with left-censoring
 	fs = bno(c(a0,a1,log(tau),log(sig)),bam,lg=FALSE,ft=c,tot=c,neg=1,
 		time=t,kset=1:(t-1))
-
 	# E-step: Calculate the weights
 	m = matrix(probs*fs,nrow=2^t)
 	wvec = as.vector(t(t(m)/colSums(m)))
@@ -98,7 +96,6 @@ while(rel_diff > 1e-05){
 	fsn = bno(c(a0,a1,log(tau),log(sig)),bam,lg=FALSE,ft=c,tot=c,neg=1,
 		time=t,kset=1:(t-1))
 	ninc = -sum(log(colSums(matrix(probsn*fsn,nrow=2^t))))
-
 	# Compare the new and previous negative incomplete log likelihood
 	s = sign(ninc-oinc)
 	
