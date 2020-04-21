@@ -150,7 +150,8 @@ ckd = colSums(matrix(dk[,1],ncol=10))/(n/10)
 
 ### Plot the calibration line with 45 degree line
 ```{r}
-plot(1,type="n",xlab="Predicted Probability",ylab="Observed Probability",ylim=c(0,1),xlim=c(0,1))
+plot(1,type="n",xlab="Predicted Probability",ylab="Observed Probability",main="Calibration Line",
+     ylim=c(0,1),xlim=c(0,1))
 abline(0,1,col="red",lwd=3)
 lines(pkd,ckd,lwd=3)
 ```
