@@ -132,25 +132,25 @@ fns = lapply(sup_m,omf,a0=alpha0_t,a1=alpha1_t,ta=tau_t,sa=sigma_t)
 
 ### Calculate the prediction probabilities of compliance at the future time point
 ```{r,cache=TRUE}
-pk1 = sapply(fns,int)
+pk = sapply(fns,int)
 ```
 
 ### Calculate the AUC for the prediction probability of compliance at the future time point
 ```{r,message=FALSE,warning=FALSE}
-auc(c_mat[,t],pk1)[1]
+auc(c_mat[,t],pk)[1]
 ```
 
 ### Construct the calibration line
 ```{r}
-mk1 = matrix(c(c_mat[,t],pk1),ncol=2)
-dk1 = mk1[order(mk1[,2]),]
-pk1d = colMeans(matrix(dk1[,2],ncol=10))
-ck1d = colSums(matrix(dk1[,1],ncol=10))/(n/10)
+mk = matrix(c(c_mat[,t],pk),ncol=2)
+dk = mk[order(mk[,2]),]
+pkd = colMeans(matrix(dk[,2],ncol=10))
+ckd = colSums(matrix(dk[,1],ncol=10))/(n/10)
 ```
 
 ### Plot the calibration line with 45 degree line
 ```{r}
 plot(1,type="n",xlab="Predicted Probability",ylab="Observed Probability",ylim=c(0,1),xlim=c(0,1))
 abline(0,1,col="red",lwd=3)
-lines(pk1d,ck1d,lwd=3)
+lines(pkd,ckd,lwd=3)
 ```
