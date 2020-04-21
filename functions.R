@@ -6,8 +6,8 @@
 lapply(c("gtools","mvtnorm","matrixStats","pROC"),require,character.only=TRUE) 
 
 ### Set the true parameter values
-alpha0_t = 4; alpha1_t = -2.1; tau_t = 0.7; sigma_t = 0.3
 beta0_t = 0; gamma_t = 1
+alpha0_t = 4; alpha1_t = -2.1; tau_t = 0.7; sigma_t = 0.3
 
 ### Define objects needed for data generation, parameter estimation, and AUC
 z = rep(0,t); zk1 = rep(0,t-1)

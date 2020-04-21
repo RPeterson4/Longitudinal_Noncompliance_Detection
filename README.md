@@ -10,4 +10,4 @@
 
 ## Each file is defaulted to generate data as Compound Symmetry. Code in each file can be uncommented to generate data as AR(1). The models fit assume Compound Symmetry.
 
-## Written by Ross Peterson, PhD Candidate in Biostatistics at the University of Minnesota. Email: pet00180@umn.edu
+## Written by Ross Peterson, PhD Candidate in Biostatistics at the University of Minnesota. Email: pet00180@umn.edu.

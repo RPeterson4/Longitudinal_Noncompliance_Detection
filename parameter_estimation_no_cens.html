@@ -234,9 +234,11 @@ for(j in 1:t){
     fs = dmvnorm(bam-oe[1]-oe[2]*cam,z, 
         matrix(c(oe[3]+oe[4],rep(c(rep(oe[3],t),oe[3]+oe[4]),t-1)),
         nrow=t))
+    
     # E-step: Calculate the weights
     m = matrix(probs*fs,nrow=2^t)
     wvec = as.vector(t(t(m)/colSums(m)))
+    
     # M-step: Fit the biomarker mixed effects model
     init = c(oe[1],oe[2],log(oe[3]),log(oe[4]))
     e1 = optim(par=init,fn=bnlog_lik,bset=bam,w=wvec,method=&quot;BFGS&quot;)$par
@@ -244,11 +246,14 @@ for(j in 1:t){
     # M-step: Fit the compliance mixed effects model
     init2 = c(oe[5],log(oe[6]))
     e2 = optim(par=init2,fn=pnlog_lik,w=wvec,method=&quot;BFGS&quot;)$par 
+    
     # Calculate the relative difference convergence criterion
     rel_diff = sum(abs((c(e1[1:2],exp(e1[3:4]),e2[1],exp(e2[2]))-oe)/oe))
+    
     # Update the number of iterations and parameter estimates
     iter = iter + 1
     oe = c(e1[1:2],exp(e1[3:4]),e2[1],exp(e2[2]))
+    
     # Calculate the negative incomplete log likelihood
     # The negative log likelihood should decrease with each iteration
     probsn = apply(lu_matr,1,pfun,beta0=oe[5],
@@ -261,13 +266,14 @@ for(j in 1:t){
     
     # Compare the new and previous negative incomplete log likelihood
     s = max(s,sign(ninc-oinc))
+    
     # Update the negative incomplete log likelihood
     oinc = ninc
 }</code></pre>
 </div>
 <div id="check-that-negative-incomplete-log-likelihood-decreased-with-each-iteration" class="section level3">
 <h3>Check that negative incomplete log likelihood decreased with each iteration</h3>
-<pre class="r"><code>s</code></pre>
+<pre class="r"><code>print(s)</code></pre>
 <pre><code>## [1] -1</code></pre>
 </div>
 <div id="compare-parameter-estimates-with-truth" class="section level3">
@@ -276,7 +282,7 @@ for(j in 1:t){
     c(oe[5],sqrt(oe[6]),oe[1:2],sqrt(oe[3:4])))
 colnames(res) = c(&quot;beta0&quot;,&quot;gamma&quot;,&quot;alpha0&quot;,&quot;alpha1&quot;,&quot;tau&quot;,&quot;sigma&quot;)
 rownames(res) = c(&quot;truth&quot;,&quot;estimate&quot;)
-res</code></pre>
+print(res)</code></pre>
 <pre><code>##                beta0    gamma   alpha0    alpha1       tau     sigma
 ## truth     0.00000000 1.000000 4.000000 -2.100000 0.8366600 0.5477226
 ## estimate -0.02863388 1.064081 3.969873 -2.122547 0.8780583 0.5426821</code></pre>
