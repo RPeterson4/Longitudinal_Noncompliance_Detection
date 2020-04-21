@@ -265,8 +265,7 @@ rel_diff = 10; iter = 0; oinc = 1e6; s = -1</code></pre>
     a0 = oe[1]; a1 = oe[2]; tau = oe[3]; sig = oe[4]
     b0 = oe[5]; gam = oe[6]
     
-    # Calculate the negative incomplete log likelihood
-    # The negative log likelihood should decrease with each iteration
+    # Calculate the negative incomplete log likelihood, should decrease with each iteration
     probsn = apply(lu_matr,1,pfun,beta0=b0,
         s_mat=matrix(c(1+gam,rep(c(rep(gam,t),1+gam),t-1)),
         nrow=t),time=t)[rsums]
